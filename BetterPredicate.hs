@@ -1,20 +1,33 @@
-module BetterPredicate  where
+module BetterPredicate (
+find,
+(==?),
+(<?),
+(>?),
+(&&?),
+(||?),
+Info(..),
+takeExtension
+) where
+
+-- test 
+-- find ( (takeExtension . infoPath) ==? ".hs"  &&? (infoSize >? Just 1000   ))
 
 import Control.Monad (filterM)
 import System.Directory (Permissions(..), getModificationTime, getPermissions,searchable)
-import System.Time (ClockTime(..))
+--import System.Time (ClockTime(..))
 import Control.Exception (bracket, handle,SomeException)
 import System.IO (IOMode(..), hClose, hFileSize, openFile)
 import RecursiveContents (getRecursiveContents)
+import System.FilePath (takeExtension) 
 
 data Info = Info {
       infoPath :: FilePath
     , infoPerms :: Maybe Permissions
     , infoSize :: Maybe Integer
-    , infoModTime :: Maybe ClockTime
+    --, infoModTime :: Maybe ClockTime
     } deriving (Eq, Ord, Show)
 
-liftP :: (a -> b -> c) -> (Info -> a) -> a -> Info  -> Bool
+liftP :: (a -> a -> Bool) -> (Info -> a) -> a -> Info  -> Bool
 liftP q f k d  = f d `q` k
 
 (==?), (<?), (>?) :: (Ord a) => (Info -> a) -> a -> Info -> Bool
@@ -22,10 +35,10 @@ liftP q f k d  = f d `q` k
 (<?) = liftP (<)
 (==?) = liftP (==)
 
-liftP2 :: (a -> b -> c) -> (Info -> a) -> (Info -> b) -> Info -> Bool
+liftP2 :: (Bool -> Bool -> Bool) -> (Info -> Bool) -> (Info -> Bool) -> Info -> Bool
 liftP2 q f g d = f d `q` g d
 
-(&&?),(||?) :: (Info -> a) -> (Info -> b) -> Info -> Bool
+(&&?),(||?) :: (Info -> Bool) -> (Info -> Bool) -> Info -> Bool
 (&&?) = liftP2 (&&)
 (||?) = liftP2 (||)
  
@@ -37,11 +50,11 @@ getFileSize path = handle err $ do
     bracket (openFile path ReadMode) hClose $ \h ->  
         hFileSize h >>= (\x -> return (Just x))  
 
-betterFind :: (Info -> Bool ) -> FilePath -> IO [FilePath]
-betterFind p path = getRecursiveContents path >>= filterM check 
+find :: (Info -> Bool ) -> FilePath -> IO [FilePath]
+find p path = getRecursiveContents path >>= filterM check 
     where 
-		check name = do
-				   perms <- getPermissions name
-				   size <- getFileSize name
-				   modified <- getModificationTime name
-				   return (p $ Info name (Just perms) size (Just modified))
+        check name = do
+            perms <- getPermissions name
+            size <- getFileSize name
+           -- modified <- getModificationTime name
+            return (p $ Info name (Just perms) size )
